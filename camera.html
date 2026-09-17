@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Robot Camera</title>
+</head>
+<body style="background:#111; text-align:center; font-family:sans-serif;">
+  <h2 style="color:white;">Robot Camera Feed</h2>
+  <p id="status" style="color:#888;">connecting...</p>
+  <img id="feed" style="max-width:100%;" />
+
+  <script>
+    // "pico" is the robot's SSH hostname per the README — try that first.
+    // If your network doesn't resolve it, use the Pi's IP address instead,
+    // e.g. "192.168.1.42".
+    const PI_ADDRESS = "pico";
+
+    const socket = new WebSocket(`ws://${PI_ADDRESS}:8765`);
+    const img = document.getElementById("feed");
+    const status = document.getElementById("status");
+
+    socket.binaryType = "blob";
+
+    socket.onmessage = (event) => {
+      const url = URL.createObjectURL(event.data);
+      img.src = url;
+      img.onload = () => URL.revokeObjectURL(url);
+    };
+    socket.onopen = () => { status.textContent = "connected"; };
+    socket.onclose = () => { status.textContent = "disconnected"; };
+    socket.onerror = () => { status.textContent = "error — check PI_ADDRESS and that main.py is running"; };
+  </script>
+</body>
+</html>
