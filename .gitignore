@@ -1,3 +1,11 @@
 __pycache__/
 *.pyc
 calibration.json
+
+# Kept locally for reference/development, not pushed to GitHub —
+# only the Picobots/ folder is meant to be public.
+old code/
+reference/
+camera.html
+requirements.txt
+CLAUDE.md

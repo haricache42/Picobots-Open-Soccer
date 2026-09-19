@@ -29,11 +29,11 @@ async def ws_handler(ws):
         clients.remove(ws)
 
 
-async def stream_cam(picam, lower, upper):
+async def stream_cam(picam, lower, upper, distance_scale):
     """Grabs frames, finds the ball, and sends the frame to any watching browsers."""
     while True:
         frame = vision.read_frame(picam)
-        frame = vision.detect_ball(frame, lower, upper)
+        frame = vision.detect_ball(frame, lower, upper, distance_scale)
 
         success, image_data = cv2.imencode(".jpg", frame)
         if success and clients:
@@ -55,14 +55,14 @@ async def motor_task():
 
 async def main():
     motors.setup_motors()
-    picam, lower_orange, upper_orange = vision.setup_camera()
+    picam, lower_orange, upper_orange, distance_scale = vision.setup_camera()
 
     server = await websockets.serve(ws_handler, "0.0.0.0", 8765)
     print("WebSocket stream on port 8765 — open camera.html to watch.")
     print("Ctrl+C to stop.")
 
     await asyncio.gather(
-        stream_cam(picam, lower_orange, upper_orange),
+        stream_cam(picam, lower_orange, upper_orange, distance_scale),
         motor_task(),
     )
     await server.wait_closed()

@@ -1,9 +1,0 @@
-# Install on the Raspberry Pi with: pip install -r requirements.txt
-opencv-python
-numpy
-websockets
-adafruit-blinka
-steelbar-powerful-bldc-driver @ git+https://github.com/Aw3someAndrew/SteelBar_CircuitPython_powerful_bldc_driver.git
-
-# picamera2 usually comes pre-installed with Raspberry Pi OS's system Python.
-# If it's missing: sudo apt install -y python3-picamera2
