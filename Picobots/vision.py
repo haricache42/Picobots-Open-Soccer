@@ -44,6 +44,14 @@ MORPH_CLOSE_KERNEL_SIZE = 7
 MIN_BALL_AREA = 25
 MIN_FILL_RATIO = 0.6
 
+# Optional: a black-and-white image, the same size as the camera frame,
+# for telling detect_ball() to ignore parts of the frame where the robot
+# can see its own body (its own frame, wheels, mounting hardware, etc).
+# White = look here, black = ignore here. Make one with
+# make_deadzone_mask.py. If this file doesn't exist, nothing is masked
+# out — see setup_camera() and build_ball_mask().
+DEADZONE_MASK_PATH = "deadzone_mask.png"
+
 # If the ball drops out of view for a few frames (motion blur, something
 # briefly blocking it), don't immediately declare it "lost" — that would
 # make the robot jerk into search-spin mode over a single bad frame.
@@ -63,6 +71,10 @@ ball_distance = 0.0
 ball_distance_unit = "px"
 ball_area = 0.0
 ball_visible = False
+
+# The loaded deadzone image (see DEADZONE_MASK_PATH above), or None if
+# there isn't one. Set once by setup_camera(); read by build_ball_mask().
+deadzone_mask = None
 
 # Internal bookkeeping for the grace period and smoothing above — other
 # files shouldn't need to read these directly, they just affect how the
@@ -86,11 +98,20 @@ def setup_camera():
     missing, or if it predates this distance-calibration feature — in
     that case detect_ball() falls back to reporting distance in pixels.
     """
+    global deadzone_mask
+
     picam = Picamera2()
     picam.configure(picam.create_preview_configuration(
         main={"size": CAMERA_RESOLUTION, "format": "RGB888"}
     ))
     picam.start()
+
+    deadzone_mask = cv2.imread(DEADZONE_MASK_PATH, cv2.IMREAD_GRAYSCALE)
+    if deadzone_mask is not None:
+        print(f"Loaded {DEADZONE_MASK_PATH} — will ignore the robot's own body there.")
+    else:
+        print(f"No {DEADZONE_MASK_PATH} found — not masking anything out. "
+              f"Run make_deadzone_mask.py if the camera can see the robot's own body.")
 
     try:
         with open("calibration.json") as file:
@@ -130,9 +151,17 @@ def setup_camera():
 
 
 def read_frame(picam):
-    """Grabs one frame from the camera, rotated to match how it's mounted."""
+    """
+    Grabs one frame from the camera, rotated to match how it's mounted.
+
+    No colour conversion needed here, even though we configured the
+    camera with format="RGB888": that's a confusingly-named Picamera2
+    quirk where an "RGB888" stream actually delivers pixels already in
+    BGR order (the order OpenCV wants everywhere else in this file).
+    Converting it again used to flip red and blue a second time, which
+    is why the live view looked colour-inverted.
+    """
     frame = picam.capture_array()
-    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
     # Rotated because the camera is physically mounted 90 degrees rotated.
     return cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
 
@@ -148,10 +177,22 @@ def build_ball_mask(frame, lower, upper):
     morphological open (erases tiny speckles of noise) and close (fills
     small holes — e.g. a bright highlight on the ball splitting its mask
     into a ring instead of a solid disc).
+
+    If a deadzone mask is loaded (see DEADZONE_MASK_PATH), pixels marked
+    black there are cleared out here too, so the robot's own body never
+    gets mistaken for the ball.
     """
     blurred = cv2.GaussianBlur(frame, (BLUR_KERNEL_SIZE, BLUR_KERNEL_SIZE), 0)
     hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
     mask = cv2.inRange(hsv, lower, upper)
+
+    if deadzone_mask is not None:
+        height, width = mask.shape[:2]
+        resized_deadzone = cv2.resize(deadzone_mask, (width, height))
+        # Threshold so it doesn't matter exactly how dark you painted —
+        # anything darker than mid-grey counts as "ignore this part".
+        _, binary_deadzone = cv2.threshold(resized_deadzone, 127, 255, cv2.THRESH_BINARY)
+        mask = cv2.bitwise_and(mask, binary_deadzone)
 
     open_kernel = np.ones((MORPH_OPEN_KERNEL_SIZE, MORPH_OPEN_KERNEL_SIZE), np.uint8)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, open_kernel)

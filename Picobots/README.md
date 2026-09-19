@@ -41,7 +41,8 @@ For a Raspberry Pi robot:
 1. Clone the repo onto the Pi (or edit directly via VS Code Remote-SSH)
 2. Install dependencies:
     - `pip install opencv-python numpy picamera2 websockets adafruit-blinka steelbar-powerful-bldc-driver`
-4. Run `camera_calibrate.py` once to lock exposure/other camera settings and sample the ball's HSV range. This generates `calibration.json`, which the main script loads on startup.
+3. Run `camera_calibrate.py` once to lock exposure/other camera settings, sample the ball's HSV range, and measure real-world distance. This generates `calibration.json`, which the main script loads on startup.
+4. (Optional) Run `make_deadzone_mask.py` once if the camera can see part of the robot's own body — it saves a snapshot you paint over to tell vision.py to ignore that part of the frame. See the comments at the top of that file for how.
 
 # DEPLOYING & USAGE
 Pi: Navigate to `/home/jarvis/Robotics/main.py`

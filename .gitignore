@@ -1,6 +1,8 @@
 __pycache__/
 *.pyc
 calibration.json
+deadzone_reference.jpg
+deadzone_mask.png
 
 # Kept locally for reference/development, not pushed to GitHub —
 # only the Picobots/ folder is meant to be public.

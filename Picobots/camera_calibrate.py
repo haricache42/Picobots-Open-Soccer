@@ -85,9 +85,7 @@ def sample_ball_hsv(picamera):
     hue_samples, saturation_samples, value_samples = [], [], []
 
     for _ in range(SAMPLE_COUNT):
-        frame = picamera.capture_array()
-        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-        frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        frame = vision.read_frame(picamera)
 
         height, width = frame.shape[:2]
         cx, cy = width // 2, height // 2
@@ -150,9 +148,7 @@ def sample_ball_apparent_diameter(picamera, lower_orange, upper_orange):
 
     diameters = []
     for _ in range(DISTANCE_SAMPLE_COUNT):
-        frame = picamera.capture_array()
-        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-        frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        frame = vision.read_frame(picamera)
 
         mask = vision.build_ball_mask(frame, lower_orange, upper_orange)
         contour, diameter_px = vision.find_best_ball_contour(mask)
