@@ -24,6 +24,25 @@ import vision
 STREAM_WIDTH = 640
 STREAM_JPEG_QUALITY = 70  # 0-100; lower = smaller/faster, higher = crisper
 
+# The robot's top plate is wide enough that the camera can't see the ball
+# once it's very close — it's not gone, just hidden under the plate. If
+# the ball disappears right after looking this big on screen (a strong
+# "it went under the plate" signal), motor_task() spends a couple of
+# seconds nudging diagonally left/right instead of spinning in place —
+# spinning can't reveal something hidden directly ahead, since the blind
+# spot turns with the robot, but nudging sideways shifts the robot enough
+# to peek around it while still closing in on the ball's last direction.
+#
+# BLIND_SPOT_AREA_THRESHOLD is a starting guess — tune it using the
+# area=... number already shown on the camera.html overlay: slide the
+# ball toward the robot, note the area right before it vanishes under
+# the plate, and set this a bit below that.
+BLIND_SPOT_AREA_THRESHOLD = 6000
+BLIND_SPOT_NUDGE_ANGLE = 35  # degrees off the ball's last-known direction
+BLIND_SPOT_NUDGE_SPEED = int(movement.MAX_SPEED * 0.35)
+BLIND_SPOT_SWITCH_TICKS = 15  # ticks per side before alternating (~0.3s)
+BLIND_SPOT_MAX_TICKS = 100  # give up and fall back to spin-search after this (~2s)
+
 # Browser tabs currently watching the camera feed.
 clients = set()
 
@@ -60,12 +79,44 @@ async def stream_cam(picam, lower, upper, distance_scale):
 
 
 async def motor_task():
-    """Every tick: if the ball is visible, drive toward it. Otherwise, spin to look for it."""
+    """
+    Every tick: if the ball is visible, drive toward it.
+
+    If it just disappeared while looking very close (see
+    BLIND_SPOT_AREA_THRESHOLD above), assume it's hidden under the front
+    plate rather than actually gone, and spend a short window nudging
+    diagonally side to side — toward where it was last seen, angled left
+    then right — to try to see around the blind spot. If that window
+    runs out without finding it again, fall back to the normal spin-search.
+    """
+    blind_spot_ticks_left = 0
+    ticks_in_recovery = 0
+    nudge_toward_left = True
+    was_visible = False
+
     while True:
-        if not vision.ball_visible:
-            movement.spin(int(movement.MAX_SPEED * 0.3))
-        else:
+        if vision.ball_visible:
             movement.move(vision.ball_angle, int(movement.MAX_SPEED * 0.7))
+            blind_spot_ticks_left = 0
+
+        else:
+            if was_visible and vision.ball_area > BLIND_SPOT_AREA_THRESHOLD:
+                # The ball just vanished while it looked very close —
+                # start (or restart) the blind-spot recovery window.
+                blind_spot_ticks_left = BLIND_SPOT_MAX_TICKS
+                ticks_in_recovery = 0
+
+            if blind_spot_ticks_left > 0:
+                if ticks_in_recovery % BLIND_SPOT_SWITCH_TICKS == 0:
+                    nudge_toward_left = not nudge_toward_left
+                offset = -BLIND_SPOT_NUDGE_ANGLE if nudge_toward_left else BLIND_SPOT_NUDGE_ANGLE
+                movement.move(vision.ball_angle + offset, BLIND_SPOT_NUDGE_SPEED)
+                blind_spot_ticks_left -= 1
+                ticks_in_recovery += 1
+            else:
+                movement.spin(int(movement.MAX_SPEED * 0.3))
+
+        was_visible = vision.ball_visible
         await asyncio.sleep(0.02)
 
 

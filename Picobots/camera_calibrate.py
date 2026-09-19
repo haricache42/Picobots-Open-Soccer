@@ -1,8 +1,7 @@
 """
-One-time setup script: locks the camera's exposure/white balance, samples
-the ball's colour, and measures how big the ball looks at a known
-distance — then saves all of it to calibration.json so vision.py can load
-it on every future run.
+One-time setup script: locks the camera's exposure/white balance and
+samples the ball's colour, then saves both to calibration.json so
+vision.py can load them on every future run.
 
 Run this once whenever the lighting changes (e.g. new venue at a
 competition).
@@ -30,14 +29,6 @@ BALL_PATCH_SIZE = 10
 HUE_MARGIN = 8
 SAT_MARGIN = 100
 VAL_MARGIN = 120
-
-# Distance-calibration step: the ball must be held at exactly this
-# distance so we can work out how big it looks at a *known* distance,
-# which is the other half of the maths that lets vision.py turn "how big
-# does the ball look now" into "how far away is it".
-CALIBRATION_DISTANCE_CM = 50.0
-DISTANCE_SAMPLE_COUNT = 15
-MIN_DISTANCE_SAMPLES_REQUIRED = 5
 
 
 def settle_and_lock_exposure(picamera):
@@ -128,66 +119,6 @@ def build_range_ball(h_med, s_med, v_med):
     return lower, upper
 
 
-def sample_ball_apparent_diameter(picamera, lower_orange, upper_orange):
-    """
-    Measures how many pixels wide the ball appears when held at exactly
-    CALIBRATION_DISTANCE_CM from the camera. This is the other half of
-    the pinhole-camera-model distance formula: once we know how big the
-    ball looks at one known distance, vision.py can invert that to
-    estimate distance from apparent size at any other distance.
-
-    Uses vision.build_ball_mask/find_best_ball_contour — the exact same
-    detection logic detect_ball() uses at match time — so this
-    measurement is directly comparable to what the robot will see later.
-
-    Returns the median apparent diameter in pixels, or None if the ball
-    wasn't reliably detected (too few of the sample frames found it).
-    """
-    input(f"Now hold the ball exactly {CALIBRATION_DISTANCE_CM:.0f}cm from the "
-          f"camera lens (use a tape measure), then press Enter...")
-
-    diameters = []
-    for _ in range(DISTANCE_SAMPLE_COUNT):
-        frame = vision.read_frame(picamera)
-
-        mask = vision.build_ball_mask(frame, lower_orange, upper_orange)
-        contour, diameter_px = vision.find_best_ball_contour(mask)
-        if contour is not None:
-            diameters.append(diameter_px)
-
-        time.sleep(0.1)
-
-    if len(diameters) < MIN_DISTANCE_SAMPLES_REQUIRED:
-        print(f"Only detected the ball in {len(diameters)}/{DISTANCE_SAMPLE_COUNT} frames — "
-              f"too few to trust. Check the ball is at {CALIBRATION_DISTANCE_CM:.0f}cm, well "
-              f"lit and clearly visible, then re-run this script. Distance reporting will fall "
-              f"back to raw pixels until this succeeds.")
-        return None
-
-    diameter_median = float(np.median(diameters))
-    print(f"Sampled apparent ball diameter at {CALIBRATION_DISTANCE_CM:.0f}cm: "
-          f"{round(diameter_median, 1)}px (from {len(diameters)}/{DISTANCE_SAMPLE_COUNT} frames)\n")
-    return diameter_median
-
-
-def compute_focal_length(apparent_diameter_px, known_distance_cm=CALIBRATION_DISTANCE_CM,
-                          real_diameter_cm=vision.REAL_BALL_DIAMETER_CM):
-    """
-    Solves the pinhole camera model for focal length, in pixels:
-
-        apparent_diameter_px = (real_diameter_cm * focal_length_px) / distance_cm
-
-    rearranged to:
-
-        focal_length_px = (apparent_diameter_px * distance_cm) / real_diameter_cm
-
-    Once we have focal_length_px, vision.py can invert the same formula
-    at match time to turn "how big does the ball look right now" into
-    "how far away is it, in cm".
-    """
-    return (apparent_diameter_px * known_distance_cm) / real_diameter_cm
-
-
 def main():
     picamera = Picamera2()
     picamera.configure(picamera.create_preview_configuration(
@@ -200,19 +131,6 @@ def main():
     ball_hue_median, ball_saturation_median, ball_value_median = sample_ball_hsv(picamera)
     lower_orange, upper_orange = build_range_ball(ball_hue_median, ball_saturation_median, ball_value_median)
 
-    apparent_diameter_px = sample_ball_apparent_diameter(
-        picamera, np.array(lower_orange), np.array(upper_orange)
-    )
-    focal_length_px = None
-    if apparent_diameter_px is not None:
-        focal_length_px = compute_focal_length(apparent_diameter_px)
-        # Sanity check for students: at 1024px wide with a typical Pi
-        # Camera field of view, this should land roughly in 750-900.
-        # Wildly outside that range usually means the ball wasn't
-        # detected properly during the distance step above.
-        print(f"Computed focal_length_px={round(focal_length_px, 1)} "
-              f"(expect roughly 750-900 for a {vision.CAMERA_RESOLUTION[0]}px-wide frame)\n")
-
     calibration = {
         "exposure_time": exposure_time,
         "analogue_gain": analogue_gain,
@@ -220,10 +138,6 @@ def main():
         "lower_orange": lower_orange,
         "upper_orange": upper_orange,
     }
-    if focal_length_px is not None:
-        calibration["focal_length_px"] = focal_length_px
-        calibration["real_ball_diameter_cm"] = vision.REAL_BALL_DIAMETER_CM
-        calibration["calibration_distance_cm"] = CALIBRATION_DISTANCE_CM
 
     with open("calibration.json", "w") as f:
         json.dump(calibration, f, indent=2)
