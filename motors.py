@@ -15,7 +15,7 @@ ADDRESSES = [25, 26, 27, 28]
 # Calibration values from running the motor calibration once per motor.
 # See reference/docs/driver-library for how these are generated.
 SAVED_CAL = [
-    {"elecangleoffset": 1608593152, "sincoscentre": 1232},
+    {"elecanleoffset": 1608593152, "sincoscentre": 1232},
     {"elecangleoffset": 1871622656, "sincoscentre": 1255},
     {"elecangleoffset": 1444260352, "sincoscentre": 1244},
     {"elecangleoffset": 1587600640, "sincoscentre": 1251},
