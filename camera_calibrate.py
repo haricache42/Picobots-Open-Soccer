@@ -1,11 +1,4 @@
-"""
-One-time setup script: locks the camera's exposure/white balance and
-samples the ball's colour, then saves both to calibration.json so
-vision.py can load them on every future run.
-
-Run this once whenever the lighting changes (e.g. new venue at a
-competition).
-"""
+"""Locks the camera and samples the ball colour into calibration.json. Rerun when the lighting changes."""
 
 import json
 import time
@@ -20,30 +13,20 @@ SETTLE_SECONDS = 3
 SAMPLE_COUNT = 15
 BALL_PATCH_SIZE = 10
 
-# Hue shouldn't be widened — it's what actually distinguishes "orange"
-# from other colours, and loosening it risks confusing the ball with skin
-# tones or other robots. Saturation/value are widened a bit more than
-# before so a distant ball (which looks slightly dimmer/less saturated,
-# just from having fewer photons reach the sensor) still falls inside the
-# calibrated range.
+# Keep hue tight (that's what makes it orange), loosen the rest for far/dim balls
 HUE_MARGIN = 8
 SAT_MARGIN = 100
 VAL_MARGIN = 120
 
 
 def settle_and_lock_exposure(picamera):
-    """
-    Locks exposure, colour balance and other camera controls so they
-    don't keep auto-adjusting during a match (which would make the HSV
-    range calibrated below drift and become useless).
-    """
-    print(f"Settling auto-exposure/white-balance for {SETTLE_SECONDS}s... "
-          f"point the camera at your real match lighting now.")
+    """Let auto-exposure settle, then lock it so colours don't drift."""
+    print(f"Settling for {SETTLE_SECONDS}s, point the camera at the match lighting")
 
     last_metadata = None
     start = time.time()
     while time.time() - start < SETTLE_SECONDS:
-        picamera.capture_array()  # just to keep frames flowing
+        picamera.capture_array()  # keep frames coming
         last_metadata = picamera.capture_metadata()
         time.sleep(0.2)
 
@@ -66,12 +49,8 @@ def settle_and_lock_exposure(picamera):
 
 
 def sample_ball_hsv(picamera):
-    """
-    Builds a 10x10 pixel capture zone in the centre of the camera, finds
-    the median HSV value of those pixels, and takes the median across
-    15 frames to represent the ball's colour.
-    """
-    input("Hold the ball steady at the centre of the camera's view, then press Enter...")
+    """Average colour of a small square in the middle of the screen."""
+    input("Hold the ball in the middle of the camera view, then press Enter...")
 
     hue_samples, saturation_samples, value_samples = [], [], []
 
@@ -95,17 +74,13 @@ def sample_ball_hsv(picamera):
     saturation_median = float(np.median(saturation_samples))
     value_median = float(np.median(value_samples))
 
-    print(f"Sampled ball HSV (median of {SAMPLE_COUNT} frames): "
-          f"H={round(hue_median, 1)}  S={round(saturation_median, 1)}  V={round(value_median, 1)}\n")
+    print(f"Ball HSV: H={round(hue_median, 1)}  S={round(saturation_median, 1)}  V={round(value_median, 1)}\n")
 
     return hue_median, saturation_median, value_median
 
 
 def build_range_ball(h_med, s_med, v_med):
-    """
-    Builds the HSV range for the ball based on the median HSV values
-    sampled from the ball, with a margin of error on each value.
-    """
+    """Sampled colour plus/minus the margins."""
     lower = [
         max(0, h_med - HUE_MARGIN),
         max(0, s_med - SAT_MARGIN),
@@ -125,7 +100,7 @@ def main():
         main={"size": vision.CAMERA_RESOLUTION, "format": "RGB888"}
     ))
     picamera.start()
-    time.sleep(1)  # let the sensor warm up before reading metadata
+    time.sleep(1)  # warm up
 
     exposure_time, analogue_gain, colour_gains = settle_and_lock_exposure(picamera)
     ball_hue_median, ball_saturation_median, ball_value_median = sample_ball_hsv(picamera)

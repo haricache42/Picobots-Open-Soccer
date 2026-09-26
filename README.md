@@ -23,10 +23,10 @@ Team Members:
 - `websockets`
 - `adafruit-blinka` (`board`, `busio`)
 - `steelbar-powerful-bldc-driver`
-- Custom browser debug viewer (`camera.html`) — streams live camera feed with ball detection overlay over WebSocket
+- `camera.html` to watch the camera in a browser
 
 ## Hardware Setup
-Raspberry Pi controls four BLDC motors over I2C for omnidirectional drive, and reads the Pi Camera Module for ball detection.
+A Raspberry Pi runs 4 BLDC motors over I2C (omni drive) and uses the Pi Camera to find the ball.
 
 ### Motor Configuration (I2C)
 | I2C Address | Position |
@@ -37,20 +37,18 @@ Raspberry Pi controls four BLDC motors over I2C for omnidirectional drive, and r
 | 28 | Front Left |
 
 # INSTALLING
-For a Raspberry Pi robot:
-1. Clone the repo onto the Pi (or edit directly via VS Code Remote-SSH)
-2. Install dependencies:
-    - `pip install opencv-python numpy picamera2 websockets adafruit-blinka steelbar-powerful-bldc-driver`
-3. Run `camera_calibrate.py` once to lock exposure/other camera settings and sample the ball's HSV range. This generates `calibration.json`, which the main script loads on startup.
-4. (Optional) Run `make_deadzone_mask.py` once if the camera can see part of the robot's own body — it saves a snapshot you paint over to tell vision.py to ignore that part of the frame. See the comments at the top of that file for how.
+1. Clone the repo onto the Pi (or use VS Code Remote-SSH)
+2. `pip install opencv-python numpy websockets adafruit-blinka steelbar-powerful-bldc-driver`
+    - `picamera2` comes with Raspberry Pi OS. If it's missing: `sudo apt install -y python3-picamera2`
+3. Run `camera_calibrate.py` to make `calibration.json`. Redo it when the lighting changes.
 
 # DEPLOYING & USAGE
-Pi: Navigate to `/home/jarvis/Robotics/main.py`
-- Run `python main.py` to start the robot.
-- Press Ctrl+C to stop the robot
+On the Pi, go to `/home/jarvis/Robotics/`
+- `python main.py` to start, Ctrl+C to stop
+- `python test_drive_straight.py` / `python test_spin.py` to test the motors
 
-Open:
-- Connect to the robot via SSH at `pico`
-- Open `camera.html` in a browser on the same network to view the live stream with ball-tracking
+Viewing:
+- SSH into `pico`
+- Open `camera.html` in a browser on the same network
 
 # ADDITIONAL INFORMATION

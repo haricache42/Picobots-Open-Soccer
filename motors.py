@@ -36,7 +36,7 @@ def setup_motors():
 
     for index, address in enumerate(ADDRESSES):
         driver = PowerfulBLDCDriver(i2c, address)
-        driver.set_current_limit_foc(65536)
+        driver.set_current_limit_foc(65536) # times 2.5
         driver.set_id_pid_constants(1500, 200)
         driver.set_iq_pid_constants(1500, 200)
         driver.set_speed_pid_constants(4e-2, 4e-4, 3e-2)
